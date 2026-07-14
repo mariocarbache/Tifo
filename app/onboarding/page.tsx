@@ -1,16 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useDebounce } from 'use-debounce'
 import TeamCard from '@/components/TeamCard'
 import type { Team } from '@/types/football'
 
 export default function OnboardingPage() {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [debouncedQuery] = useDebounce(query, 400)
   const [results, setResults] = useState<Team[]>([])
   const [selectedTeams, setSelectedTeams] = useState<Team[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Run a search whenever the debounced query changes
@@ -47,6 +50,31 @@ export default function OnboardingPage() {
       }
       return [...prev, team]
     })
+  }
+
+  //save all selected teams then redirect
+  const handleSave = async () => {
+    if (selectedTeams.length === 0) return
+    setIsSaving(true)
+    setError(null)
+
+    try {
+      // Save each team one at a time using your POST endpoint
+      await Promise.all(
+        selectedTeams.map((team) =>
+          fetch('/api/user/teams', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(team),
+          })
+        )
+      )
+      // All saved — go to dashboard
+      router.push('/dashboard')
+    } catch (err) {
+      setError('Failed to save your teams. Please try again.')
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -108,9 +136,14 @@ export default function OnboardingPage() {
       {selectedTeams.length > 0 && (
         <div className="mt-8">
           <button
-            className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            onClick={handleSave}           // wired up now
+            disabled={isSaving}            // disabled while saving
+            className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Continue with {selectedTeams.length} team{selectedTeams.length !== 1 ? 's' : ''}
+            {isSaving
+              ? 'Saving...'
+              : `Continue with ${selectedTeams.length} team${selectedTeams.length !== 1 ? 's' : ''}`
+            }
           </button>
         </div>
       )}
